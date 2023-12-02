@@ -21,15 +21,17 @@
 #include "platform.h"
 #include "xil_printf.h"
 #include "fir_filters.h"
-// #include "fir_filters_fixed.h"
+#include "fir_filters_fixed.h"
 #include "xiltimer.h"
 #include <math.h>
 #include <xparameters.h>
 #include "dma.h"
 #include "sleep.h"
+#include <time.h>
+// #include "xtime_l.h"
 
 
-#define FILTER_DATA_SIZE (512)
+#define FILTER_DATA_SIZE (512*16)
 #define FILTER_LENGTH (21)
 #define ARRAY_LEN(x) sizeof(x)/sizeof(x[0])
 #define PI (3.1415926535897)
@@ -70,11 +72,12 @@ void clearArray_Fixed(fixed* input, uint32_t length)
     }
 }
 
+/* Convert from fixed point of FPGA to float to print - FPGA output/input fractional bits are different so scale the output */
 void fixedToFloat(fixed* input, double* output, uint32_t length)
 {
     for (uint32_t i = 0; i < length; i++)
     {
-        output[i] = FIXED_TO_FLOAT(input[i]);
+        output[i] = FIXED_TO_FLOAT(input[i] << 1);
     }
 }
 
@@ -84,6 +87,26 @@ void floatToFixed(double* input, fixed* output, uint32_t length)
     {
         output[i] = FLOAT_TO_FIXED(input[i]);
     }
+}
+
+double time_diff_us(XTime start, XTime end)
+{
+    double time_us = ((double)(end - start) * 1000000) / COUNTS_PER_SECOND;
+    return time_us;
+}
+    
+void test_time(u32 delay)
+{
+    // sleep(0);
+    XTime start, end;
+
+    XTime_GetTime(&start);
+    usleep(delay);
+    XTime_GetTime(&end);
+
+    char str[128];
+    sprintf(str, "\r\nDelay: %u, Time: %0.4f, Start: %llu, End: %llu", delay, time_diff_us(start, end), start, end);
+    xil_printf("%s", str);
 }
 
 /* low pass cutoff w=0.2 (1 MHz) */
@@ -116,53 +139,52 @@ int main()
     double y[FILTER_DATA_SIZE] = {1.0};
     fixed x_fixed[FILTER_DATA_SIZE] = {0};
     fixed y_fixed[FILTER_DATA_SIZE] = {0};
-    // double h_fpga[FILTER_LENGTH] = {6,0,-4,-3,5,6,-6,-13,7,44,64,44,7,-13,-6,6,5,-3,-4,0,6};
-    double w[FILTER_LENGTH] = {0.0};
+    fixed h_fixed[FILTER_LENGTH] = {0};
+    fixed w_fixed[FILTER_LENGTH] = {0};
     init_platform();
-
-    uint32_t* dma_control = XPAR_XAXIDMA_0_BASEADDR;
-
-    // *dma_control |= 0x04;
-    // while ((*dma_control & 0x04) != 0)
-    // {
-    //     xil_printf("\r\nDMA_WAIT");
-    //     sleep(1);
-    // }
-
-    dma_test();
-
+    xtimerinit();
 
     /* generate input signal: 500 KHz signal of interest, 3.3 & 5.1 MHz noise of 5 & 10 times size */
     genInputSamples(&x[0], ARRAY_LEN(x),  500000., 1.,  1.0/SAMPLE_RATE);
     genInputSamples(&x[0], ARRAY_LEN(x), 3300000., 10., 1.0/SAMPLE_RATE);
     genInputSamples(&x[0], ARRAY_LEN(x), 5100000., 5.,  1.0/SAMPLE_RATE);
 
+    // test_time(1);
+    // test_time(100);
+    // test_time(1000);
+    // test_time(1000000);
+    // test_time(10000000);
+
     XTime startTime;
     XTime endTime;
+    
+    floatToFixed(x, x_fixed, ARRAY_LEN(x));
+    floatToFixed(y, y_fixed, ARRAY_LEN(y));
+    floatToFixed(h, h_fixed, ARRAY_LEN(h));
+
     xil_printf("\n\r\n\rTEST START:\n\r");
     XTime_GetTime(&startTime);
     // for (int j = 0; j < 10; j++) {
     // for (int i = 0; i < FILTER_DATA_SIZE; i++)
     // {
-    //     y[i] = fir(FILTER_LENGTH, &h[0], &w[0], x[i]);
+    //     y_fixed[i] = fir_fixed(FILTER_LENGTH, &h_fixed[0], &w_fixed[0], x_fixed[i]);
     // }
     // }
-    floatToFixed(x, x_fixed, ARRAY_LEN(x));
-    floatToFixed(y, y_fixed, ARRAY_LEN(y));
-    // int ret = dma_start(&x_fixed[0], &y_fixed[0], ARRAY_LEN(x_fixed));
-    // int ret = dma_manual(&(x_fixed[0]), &y_fixed, 16);
-    int ret = dma_manual((uintptr_t) &x[0], (uintptr_t) &y[0], 16);
-    xil_printf("\r\nReturn: %d", ret);
-    // fixedToFloat(y_fixed, y, ARRAY_LEN(y_fixed));
+
+    int ret = dma_transfer((u8*)&x_fixed[0], (u8*)&y_fixed[0], sizeof(x_fixed)); // length in bytes, not array size
     XTime_GetTime(&endTime);
+
+    // xil_printf("\r\nReturn: %d", ret);
+    fixedToFloat(x_fixed, x, ARRAY_LEN(x));
+    fixedToFloat(y_fixed, y, ARRAY_LEN(y));
 
     printSamplesCSV(&x[0], &y[0], ARRAY_LEN(y));
 
     
     char str[128];
-    snprintf(str, ARRAY_LEN(str), "\n\rStart Time: %llu, End Time: %llu, Total Time: %llu Y: %.4f\n\r", startTime, endTime, endTime-startTime, y[FILTER_DATA_SIZE-1]);
+    snprintf(str, ARRAY_LEN(str), "\n\rStart Time: %llu, End Time: %llu, Total Time: %0.1f ||| Configuration - len=%d\n\r", startTime, endTime, time_diff_us(startTime, endTime), FILTER_LENGTH);
     xil_printf("%s", str);
-    // dma_start(&x_fixed, &y_fixed, ARRAY_LEN(x_fixed));
+
     cleanup_platform();
     return 0;
 }

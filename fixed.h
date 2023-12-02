@@ -7,8 +7,10 @@ typedef int32_t fixed;
 // Define the number of fractional bits
 // On the Xylinx 
 #define FRACTIONAL_BITS 16  
+#define OUTPUT_FRACTIONAL_BITS 15
 
 // Macro to convert from float to fixed-point
+// #define FLOAT_TO_FIXED(x) ((fixed)((x) * (1 << FRACTIONAL_BITS)))
 #define FLOAT_TO_FIXED(x) ((fixed)((x) * (1 << FRACTIONAL_BITS)))
 
 // Macro to convert from fixed-point to float
