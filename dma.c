@@ -51,6 +51,7 @@
  * 9.15  sa   08/12/22 Updated the example to use latest MIG cannoical define
  * 		       i.e XPAR_MIG_0_C0_DDR4_MEMORY_MAP_BASEADDR.
  * 9.16  sa   09/29/22 Fix infinite loops in the example.
+ *       NKG  12/9/23 Modified for use with zc702 benchmark (CprE 581 term project)
  * </pre>
  *
  * ***************************************************************************

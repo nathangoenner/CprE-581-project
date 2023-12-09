@@ -7,17 +7,18 @@ typedef int32_t fixed;
 // Define the number of fractional bits
 // On the Xylinx 
 #define FRACTIONAL_BITS 16  
-#define OUTPUT_FRACTIONAL_BITS 15
+
+// FIR Compiler output has 15 fractional bits compared to 16 input
+#define FIR_OUTPUT_FRACTIONAL_BITS 15
 
 // Macro to convert from float to fixed-point
-// #define FLOAT_TO_FIXED(x) ((fixed)((x) * (1 << FRACTIONAL_BITS)))
-#define FLOAT_TO_FIXED(x) ((fixed)((x) * (1 << FRACTIONAL_BITS)))
+#define FLOAT_TO_FIXED(x, frac_bits) ((fixed)((x) * (1 << frac_bits)))
 
 // Macro to convert from fixed-point to float
-#define FIXED_TO_FLOAT(x) ((float)(x) / (1 << FRACTIONAL_BITS))
+#define FIXED_TO_FLOAT(x, frac_bits) ((float)(x) / (1 << frac_bits))
 
 // Macro for fixed-point multiplication
-#define FIXED_MUL(a, b) (((fixed)(a) * (b)) >> FRACTIONAL_BITS)
+#define FIXED_MUL(a, b, frac_bits) (((fixed)(a) * (b)) >> frac_bits)
 
 // Macro for fixed-point addition
 #define FIXED_ADD(a, b) ((fixed)(a) + (b))

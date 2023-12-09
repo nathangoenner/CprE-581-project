@@ -59,7 +59,7 @@ fixed dot_fixed(int M, fixed *h, fixed *w) {
     fixed y;
 
     for (y = 0, i = 0; i <= M; i++)  // compute dot product
-        y = FIXED_ADD(y, FIXED_MUL(h[i], w[i]));      
+        y = FIXED_ADD(y, FIXED_MUL(h[i], w[i], FRACTIONAL_BITS));      
 
     return y;
 }

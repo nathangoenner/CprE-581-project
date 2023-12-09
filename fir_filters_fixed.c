@@ -8,7 +8,7 @@ fixed fir_fixed(int M, fixed *h, fixed *w, fixed x) {
     w[0] = x;
 
     for (y = 0, i = 0; i <= M; i++)
-        y = FIXED_ADD(y, FIXED_MUL(h[i], w[i]));
+        y = FIXED_ADD(y, FIXED_MUL(h[i], w[i], FRACTIONAL_BITS));
 
     for (i = M; i >= 1; i--)
         w[i] = w[i - 1];
@@ -36,9 +36,9 @@ fixed fir3_fixed(int M, fixed *h, fixed *w, fixed x) {
 
     w[0] = x;
 
-    for (y = FIXED_MUL(h[M], w[M]), i = M - 1; i >= 0; i--) {
+    for (y = FIXED_MUL(h[M], w[M], FRACTIONAL_BITS), i = M - 1; i >= 0; i--) {
         w[i + 1] = w[i];
-        y = FIXED_ADD(y, FIXED_MUL(h[i], w[i]));
+        y = FIXED_ADD(y, FIXED_MUL(h[i], w[i], FRACTIONAL_BITS));
     }
 
     return y;
@@ -52,7 +52,7 @@ fixed cfir_fixed(int M, fixed *h, fixed *w, fixed **p, fixed x) {
     **p = x;
 
     for (y = 0, i = 0; i <= M; i++) {
-        y = FIXED_ADD(y, FIXED_MUL((*h++), *(*p)++));
+        y = FIXED_ADD(y, FIXED_MUL((*h++), *(*p)++, FRACTIONAL_BITS));
         wrap_fixed(M, w, p);
     }
 
@@ -71,7 +71,7 @@ fixed cfir1_fixed(int M, fixed *h, fixed *w, fixed **p, fixed x) {
     wrap_fixed(M, w, p); 
 
     for (y = 0, h += M, i = M; i >= 0; i--) {
-        y = FIXED_ADD(y, FIXED_MUL((*h--), *(*p)--));
+        y = FIXED_ADD(y, FIXED_MUL((*h--), *(*p)--, FRACTIONAL_BITS));
         wrap_fixed(M, w, p);
     }
 
@@ -86,7 +86,7 @@ fixed cfir2_fixed(int M, fixed *h, fixed *w, int *q, fixed x) {
     w[*q] = x;
 
     for (y = 0, i = 0; i <= M; i++) {
-        y = FIXED_ADD(y, FIXED_MUL((*h++), w[(*q)++]));
+        y = FIXED_ADD(y, FIXED_MUL((*h++), w[(*q)++], FRACTIONAL_BITS));
         wrap2(M, q);
     }
 

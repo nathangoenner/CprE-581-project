@@ -18,92 +18,16 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include "gpio.h"
+#include "utils.h"
 
-#define USE_FPGA 0
-#define FILTER_DATA_SIZE (1024)
-#define FILTER_LENGTH (21)
-#define ARRAY_LEN(x) sizeof(x)/sizeof(x[0])
-#define PI (3.1415926535897)
-#define SAMPLE_RATE (10000000) // 10 MHz
+int test_fpga(fixed* x, fixed* y);
+int test_arm(fixed* x, fixed* y);
+int test_arm_float(double* x, double* y);
 
-void debug_out(const char* format, ...)
-{
-    va_list args;
-    va_start(args, format);
-    char str[256];
-    vsnprintf(str, sizeof(str), format, args);
-    xil_printf("%s", str);
+#define FILTER_DATA_SIZE (2048)
+#define FILTER_ORDER  (20)
+#define FILTER_LENGTH (FILTER_ORDER + 1)
 
-}
-
-void printSamplesCSV(double* input, double* output, uint32_t length)
-{
-    xil_printf("\r\nSample,In,Out");
-    for (uint32_t i = 0; i < length; i++)
-    {
-        debug_out("\r\n%lu,%.4f,%.4f", i, input[i], output[i]);
-    }
-}
-
-void genInputSamples(double* input, uint32_t length, double frequency, double amplitude, double fs)
-{
-    for (uint32_t i = 0; i < length; i++)
-    {
-        input[i] += sin(fs * i * 2 * PI * frequency) * amplitude;
-        // debug_out("Gen %d: variable=%0.2f", i, input[i]);
-    }
-}
-
-void clearArray_Double(double* input, uint32_t length)
-{
-    for (uint32_t i = 0; i < length; i++)
-    {
-        input[i] = 0.0;
-    }
-}
-
-void clearArray_Fixed(fixed* input, uint32_t length)
-{
-    for (uint32_t i = 0; i < length; i++)
-    {
-        input[i] = 0;
-    }
-}
-
-/* Convert from fixed point of FPGA to float to print - FPGA output/input fractional bits are different so scale the output */
-void fixedToFloat(fixed* input, double* output, uint32_t length)
-{
-    for (uint32_t i = 0; i < length; i++)
-    {
-        output[i] = FIXED_TO_FLOAT(input[i] << 1);
-    }
-}
-
-void floatToFixed(double* input, fixed* output, uint32_t length)
-{
-    for (uint32_t i = 0; i < length; i++)
-    {
-        output[i] = FLOAT_TO_FIXED(input[i]);
-    }
-}
-
-double time_diff_us(XTime start, XTime end)
-{
-    double time_us = ((double)(end - start) * 1000000) / COUNTS_PER_SECOND;
-    return time_us;
-}
-    
-void test_time(u32 delay)
-{
-    // sleep(0);
-    XTime start, end;
-
-    XTime_GetTime(&start);
-    usleep(delay);
-    XTime_GetTime(&end);
-
-    debug_out("\r\nDelay: %u, Time: %0.4f, Start: %llu, End: %llu", delay, time_diff_us(start, end), start, end);
-}
 
 /* low pass cutoff w=0.2 (1 MHz) */
 static double h[FILTER_LENGTH] = {
@@ -133,91 +57,53 @@ static double h[FILTER_LENGTH] = {
 int main()
 {
     init_platform();
-    XilTickTimer_Init(&TimerInst);
-    // double x[FILTER_DATA_SIZE] = {0.0};
-    // double y[FILTER_DATA_SIZE] = {1.0};
-    // fixed x_fixed[FILTER_DATA_SIZE] = {0};
-    // fixed y_fixed[FILTER_DATA_SIZE] = {0};
-    fixed h_fixed[FILTER_LENGTH] = {0};
-    fixed w_fixed[FILTER_LENGTH] = {0};
 
+    /* Initialize the GPIO pins that we use for measurement */
     led_init();
     set_led0(0);
     set_led1(0);
+
+    /* Allocate memory for the input/output arrays of arbitrary length */
     double* x = malloc(sizeof(double) * FILTER_DATA_SIZE);
     double* y = malloc(sizeof(double) * FILTER_DATA_SIZE);
     fixed* x_fixed = malloc(sizeof(fixed) * FILTER_DATA_SIZE);
     fixed* y_fixed = malloc(sizeof(fixed) * FILTER_DATA_SIZE);
+
+    /* Check for failure to allocate memory */
     if (!x || !y || !x_fixed || !y_fixed)
     {
         debug_out("\r\nFailed to allocate memory!!! Pointers: x:%p y%p xf%p yf%p", x, y, x_fixed, y_fixed);
         return 1;
     }
+
+    /* malloc doesn't clear memory, so make sure we initialize the arrays */
     clearArray_Double(x, FILTER_DATA_SIZE);
     clearArray_Double(y, FILTER_DATA_SIZE);
     clearArray_Fixed(x_fixed, FILTER_DATA_SIZE);
     clearArray_Fixed(y_fixed, FILTER_DATA_SIZE);
 
-    // x[0] = 23.0;
-    // x[1] = 25.0;
-
     /* generate input signal: 500 KHz signal of interest, 3.3 & 5.1 MHz noise of 5 & 10 times size */
     genInputSamples(x, FILTER_DATA_SIZE,  500000., 1.,  1.0/SAMPLE_RATE);
     genInputSamples(x, FILTER_DATA_SIZE, 3300000., 10., 1.0/SAMPLE_RATE);
-    genInputSamples(x, FILTER_DATA_SIZE, 5100000., 5.,  1.0/SAMPLE_RATE);
+    genInputSamples(x, FILTER_DATA_SIZE, 5100000., 5.,  1.0/SAMPLE_RATE);    
 
-
-
-    // test_time(1);
-    // test_time(100);
-    // test_time(1000);
-    // test_time(1000000);
-    // test_time(10000000);
-
-    XTime startTime;
-    XTime endTime;
-    
     floatToFixed(x, x_fixed, FILTER_DATA_SIZE);
-    floatToFixed(y, y_fixed, FILTER_DATA_SIZE);
-    floatToFixed(h, h_fixed, ARRAY_LEN(h));
+    // floatToFixed(y, y_fixed, FILTER_DATA_SIZE);
 
     // printSamplesCSV(x, y, FILTER_DATA_SIZE);
     debug_out("\n\r\n\rTEST START:\n\r");
-    XTime curTime;
-    u32 uTime;
-    for (int i = 0; i < 1000; i++)
-    {
-        XTime_GetTime(&curTime);
-        uTime = curTime;
-        // debug_out("\r\n%lld - %lu - %u", curTime, uTime, uTime);
-        debug_out("\r\n%0.2f", time_diff_us(0, curTime));
-        usleep(50);
-    }
-    XTime_GetTime(&startTime);
-    set_led0(1);
-    
-#define NUM_LOOPS 1
-    for (int j = 0; j < NUM_LOOPS; j++) {
-#if 0 //USE_FPGA
-    for (int i = 0; i < FILTER_DATA_SIZE; i++)
-    {
-        y_fixed[i] = fir_fixed(FILTER_LENGTH, &h_fixed[0], &w_fixed[0], x_fixed[i]);
-    }
 
-#else
-    int ret = dma_transfer((u8*)x_fixed, (u8*)y_fixed, FILTER_DATA_SIZE * sizeof(fixed)); // length in bytes, not array size
-#endif
-    }
-    XTime_GetTime(&endTime);
-    set_led0(0);
+    test_fpga(&x_fixed[0], &y_fixed[0]);
+    test_arm(&x_fixed[0], &y_fixed[0]);
 
     fixedToFloat(x_fixed, x, FILTER_DATA_SIZE);
     fixedToFloat(y_fixed, y, FILTER_DATA_SIZE);
 
-    printSamplesCSV(x, y, FILTER_DATA_SIZE);
 
+    printSamplesCSV(x, y, FILTER_DATA_SIZE);
+    test_arm_float(x, y);
+    debug_out("\r\nTest Finished!");
     
-    debug_out("\n\rStart Time: %llu, End Time: %llu, Total Time: %0.1f ||| Configuration - len=%d\n\r", startTime, endTime, time_diff_us(startTime, endTime), FILTER_LENGTH);
 
     cleanup_platform();
 
@@ -225,5 +111,42 @@ int main()
     free(y);
     free(x_fixed);
     free(y_fixed);
+    return 0;
+}
+
+int test_fpga(fixed* x, fixed* y)
+{
+    int ret;
+    set_led0(1);
+    ret = dma_transfer((u8*)x, (u8*)y, FILTER_DATA_SIZE * sizeof(fixed)); // length in bytes, not array size
+    set_led0(0);
+    return ret;
+}
+
+int test_arm(fixed* x, fixed* y)
+{
+    fixed h_fixed[FILTER_LENGTH] = {0};
+    fixed w_fixed[FILTER_LENGTH] = {0};
+    floatToFixed(h, h_fixed, ARRAY_LEN(h));
+
+    set_led1(1);
+    for (int i = 0; i < FILTER_DATA_SIZE; i++)
+    {
+        y[i] = fir3_fixed(FILTER_ORDER, &h_fixed[0], &w_fixed[0], x[i]);
+    }
+    set_led1(0);
+    return 0;
+}
+
+int test_arm_float(double* x, double* y)
+{
+    double w[FILTER_LENGTH] = {0};
+
+    set_led1(1);
+    for (int i = 0; i < FILTER_DATA_SIZE; i++)
+    {
+        y[i] = fir3(FILTER_ORDER, &h[0], &w[0], x[i]);
+    }
+    set_led1(0);
     return 0;
 }
