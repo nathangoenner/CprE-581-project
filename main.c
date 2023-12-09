@@ -1,20 +1,7 @@
-/******************************************************************************
-* Copyright (C) 2023 Advanced Micro Devices, Inc. All Rights Reserved.
-* SPDX-License-Identifier: MIT
-******************************************************************************/
-/*
- * helloworld.c: simple test application
- *
- * This application configures UART 16550 to baud rate 9600.
- * PS7 UART (Zynq) is not initialized by this application, since
- * bootrom/bsp configures it to baud rate 115200
- *
- * ------------------------------------------------
- * | UART TYPE   BAUD RATE                        |
- * ------------------------------------------------
- *   uartns550   9600
- *   uartlite    Configurable only in HW design
- *   ps7_uart    115200 (configured by bootrom/bsp)
+/* CPRE581 Term Project - FPGA Accelerated FIR Filtering
+ * Nathan Goenner
+ * Wesley Jones
+ * Bryce Hall
  */
 
 #include <stdio.h>
@@ -30,6 +17,7 @@
 #include <time.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include "gpio.h"
 
 #define USE_FPGA 0
 #define FILTER_DATA_SIZE (1024)
@@ -141,6 +129,7 @@ static double h[FILTER_LENGTH] = {
   0.00243748358928575,
   0.0006829175509092024
 };
+
 int main()
 {
     init_platform();
@@ -152,6 +141,9 @@ int main()
     fixed h_fixed[FILTER_LENGTH] = {0};
     fixed w_fixed[FILTER_LENGTH] = {0};
 
+    led_init();
+    set_led0(0);
+    set_led1(0);
     double* x = malloc(sizeof(double) * FILTER_DATA_SIZE);
     double* y = malloc(sizeof(double) * FILTER_DATA_SIZE);
     fixed* x_fixed = malloc(sizeof(fixed) * FILTER_DATA_SIZE);
@@ -202,10 +194,11 @@ int main()
         usleep(50);
     }
     XTime_GetTime(&startTime);
+    set_led0(1);
     
 #define NUM_LOOPS 1
     for (int j = 0; j < NUM_LOOPS; j++) {
-#if 1 //USE_FPGA
+#if 0 //USE_FPGA
     for (int i = 0; i < FILTER_DATA_SIZE; i++)
     {
         y_fixed[i] = fir_fixed(FILTER_LENGTH, &h_fixed[0], &w_fixed[0], x_fixed[i]);
@@ -216,6 +209,7 @@ int main()
 #endif
     }
     XTime_GetTime(&endTime);
+    set_led0(0);
 
     fixedToFloat(x_fixed, x, FILTER_DATA_SIZE);
     fixedToFloat(y_fixed, y, FILTER_DATA_SIZE);
