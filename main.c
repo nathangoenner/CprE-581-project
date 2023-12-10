@@ -24,35 +24,43 @@ int test_fpga(fixed* x, fixed* y);
 int test_arm(fixed* x, fixed* y);
 int test_arm_float(double* x, double* y);
 
-#define FILTER_DATA_SIZE (2048)
+#define FILTER_DATA_SIZE (65536)
 #define FILTER_ORDER  (20)
 #define FILTER_LENGTH (FILTER_ORDER + 1)
 
 
-/* low pass cutoff w=0.2 (1 MHz) */
-static double h[FILTER_LENGTH] = {
-  0.0006829175509092024,
-  0.00243748358928575,
-  0.003142207770501069,
-  -0.002422524866965798,
-  -0.016726894887862633,
-  -0.02972871164928671,
-  -0.017411385814133325,
-  0.04162378298129599,
-  0.1408647243662474,
-  0.23773146400425554,
-  0.27823817659456984,
-  0.23773146400425554,
-  0.1408647243662474,
-  0.04162378298129599,
-  -0.017411385814133325,
-  -0.02972871164928671,
-  -0.016726894887862633,
-  -0.002422524866965798,
-  0.003142207770501069,
-  0.00243748358928575,
-  0.0006829175509092024
+
+static double h[] = {
+  0.00037901217544093594,
+  0.003983243842986631,
+  0.010120005263499371,
+  0.010266967368121263,
+  -0.007027153056169479,
+  -0.03675557784754312,
+  -0.04509269415314178,
+  0.009995897563795745,
+  0.1325937532814218,
+  0.26476816876515974,
+  0.32220407747180513,
+  0.26476816876515974,
+  0.1325937532814218,
+  0.009995897563795745,
+  -0.04509269415314178,
+  -0.03675557784754312,
+  -0.007027153056169479,
+  0.010266967368121263,
+  0.010120005263499371,
+  0.003983243842986631,
+  0.00037901217544093594
 };
+
+
+
+
+
+
+
+
 
 int main()
 {
@@ -93,14 +101,20 @@ int main()
     // printSamplesCSV(x, y, FILTER_DATA_SIZE);
     debug_out("\n\r\n\rTEST START:\n\r");
 
-    test_fpga(&x_fixed[0], &y_fixed[0]);
+    // test_fpga(&x_fixed[0], &y_fixed[0]);
     test_arm(&x_fixed[0], &y_fixed[0]);
+    int ret = test_fpga(&x_fixed[0], &y_fixed[0]);
+    if (ret != 0)
+    {
+        debug_out("\r\nFPGA FAIL - rc: %d\r\n", ret);
+        return -1;
+    }
 
-    fixedToFloat(x_fixed, x, FILTER_DATA_SIZE);
+    // fixedToFloat(x_fixed, x, FILTER_DATA_SIZE);
     fixedToFloat(y_fixed, y, FILTER_DATA_SIZE);
 
 
-    printSamplesCSV(x, y, FILTER_DATA_SIZE);
+    // printSamplesCSV(x, y, FILTER_DATA_SIZE);
     test_arm_float(x, y);
     debug_out("\r\nTest Finished!");
     
